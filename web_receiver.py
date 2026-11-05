@@ -12,7 +12,6 @@ from modules.responseStore import get_customer_responses, record_decision
 
 
 API_KEY = os.getenv("RESPONSE_API_KEY", "")
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 
 
 def decode_response_token(token):
@@ -164,8 +163,6 @@ class ResponseHandler(BaseHTTPRequestHandler):
 def main():
     if not API_KEY:
         raise RuntimeError("Set the RESPONSE_API_KEY environment variable in Render.")
-    if not PUBLIC_BASE_URL:
-        raise RuntimeError("Set PUBLIC_BASE_URL to your Render service URL.")
 
     port = int(os.getenv("PORT", "10000"))
     server = ThreadingHTTPServer(("0.0.0.0", port), ResponseHandler)
