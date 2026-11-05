@@ -120,6 +120,10 @@ def send_finalized_quotation_email():
         return
 
     special_instructions = quotation.get("special_instructions") or "None"
+    rush_fee_line = ""
+    if "rush_fee" in quotation:
+        rush_fee_line = f"Rush surcharge: PHP {quotation['rush_fee']:,.2f}\n"
+
     email_text = f"""Hello {quotation['customer_name']},
 
 Here is your finalized quotation.
@@ -130,8 +134,8 @@ Quantity: {quotation['quantity']}
 Price per product: PHP {quotation['price_per_product']:,.2f}
 Discount: {quotation['discount']}%
 Subtotal: PHP {quotation['subtotal']:,.2f}
-Total: PHP {quotation['total_price']:,.2f}
 Rush order: {"Yes" if quotation['is_rush_order'] else "No"}
+{rush_fee_line}Total: PHP {quotation['total_price']:,.2f}
 Special instructions: {special_instructions}
 
 To accept this quotation, open this link:
@@ -140,10 +144,10 @@ To accept this quotation, open this link:
 To decline this quotation, open this link:
 {decline_url}
 
-After opening a link, confirm your choice on the page.
+Please reply to this email if you have any questions about your quotation.
 
 Thank you,
-Printing Shop"""
+Ganimation Printing Service"""
 
     message = EmailMessage()
     message["To"] = recipient

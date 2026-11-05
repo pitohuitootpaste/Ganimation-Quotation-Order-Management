@@ -39,26 +39,13 @@ def decode_response_token(token):
         return None
 
 
-def response_page(title, message, form=None):
-    form_html = ""
-    if form:
-        escaped_token = html.escape(form["token"], quote=True)
-        escaped_decision = html.escape(form["decision"], quote=True)
-        action_text = "accept" if form["decision"] == "accepted" else "decline"
-        form_html = f"""
-        <form method="post" action="/respond">
-            <input type="hidden" name="token" value="{escaped_token}">
-            <input type="hidden" name="decision" value="{escaped_decision}">
-            <button type="submit">Confirm {action_text}</button>
-        </form>
-        """
-
+def response_page(title, message):
     return f"""<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title></head>
 <body style="font-family:Arial,sans-serif;max-width:640px;margin:60px auto;padding:0 20px;line-height:1.5">
-<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p>{form_html}
+<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p>
 </body></html>"""
 
 
@@ -74,8 +61,8 @@ class ResponseHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def send_html(self, status, title, message, form=None):
-        body = response_page(title, message, form).encode("utf-8")
+    def send_html(self, status, title, message):
+        body = response_page(title, message).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -110,37 +97,9 @@ class ResponseHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         token = query.get("token", [""])[0]
         decision = query.get("decision", [""])[0]
-        if not decode_response_token(token) or decision not in ("accepted", "declined"):
-            self.send_html(400, "Invalid link", "This response link is invalid.")
-            return
-
-        action = "accept" if decision == "accepted" else "decline"
-        self.send_html(
-            200,
-            f"Confirm {action} quotation",
-            f"Press the button below to confirm that you want to {action} this quotation.",
-            {"token": token, "decision": decision}
-        )
-
-    def do_POST(self):
-        if urlparse(self.path).path != "/respond":
-            self.send_html(404, "Page not found", "This link is not available.")
-            return
-
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            length = 0
-        if length <= 0 or length > 4096:
-            self.send_html(400, "Invalid response", "The response could not be submitted.")
-            return
-
-        form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
-        token = form.get("token", [""])[0]
-        decision = form.get("decision", [""])[0]
         token_data = decode_response_token(token)
         if not token_data or decision not in ("accepted", "declined"):
-            self.send_html(400, "Invalid response", "The response could not be submitted.")
+            self.send_html(400, "Invalid link", "This response link is invalid.")
             return
 
         try:
@@ -157,7 +116,14 @@ class ResponseHandler(BaseHTTPRequestHandler):
             return
 
         action = "accepted" if decision == "accepted" else "declined"
-        self.send_html(200, "Response recorded", f"Thank you. You have {action} this quotation.")
+        self.send_html(
+            200,
+            "Response recorded",
+            f"Thank you. You have {action} this quotation."
+        )
+
+    def do_POST(self):
+        self.send_html(405, "Not available", "Please use one of the quotation links in your email.")
 
 
 def main():

@@ -47,6 +47,8 @@ def view_declined_details():
     print(f"Price Per Product: PHP {quotation['price_per_product']:,.2f}")
     print(f"Discount: {quotation['discount']}%")
     print(f"Subtotal: PHP {quotation['subtotal']:,.2f}")
+    if "rush_fee" in quotation:
+        print(f"Rush Surcharge: PHP {quotation['rush_fee']:,.2f}")
     print(f"Total: PHP {quotation['total_price']:,.2f}")
     print("---------------------------------------")
     print(f"Rush Order: {quotation['is_rush_order']}")

@@ -1,4 +1,5 @@
 from modules.storage import load_data, save_data
+from modules.pricing import calculate_totals
 from datetime import datetime
 
 def create_quotation():
@@ -67,9 +68,12 @@ def create_quotation():
             print("Please enter Y or N.")
 
     special_instructions = input("Special Instructions (Optional): ")
-    subtotal = quantity * price_per_product
-    discount_amount = subtotal * (discount / 100)
-    total_price = subtotal - discount_amount
+    subtotal, rush_fee, total_price = calculate_totals(
+        quantity,
+        price_per_product,
+        discount,
+        is_rush_order
+    )
     quotations = load_data("quotations.json")
     orders = load_data("orders.json")
     declined = load_data("declined.json")
@@ -90,8 +94,9 @@ def create_quotation():
         "discount": discount,
         "is_rush_order": is_rush_order,
         "special_instructions": special_instructions,
-        "subtotal": round(subtotal, 2),
-        "total_price": round(total_price, 2),
+        "subtotal": subtotal,
+        "rush_fee": rush_fee,
+        "total_price": total_price,
         "status": "Draft",
         "date_created": date_created,
         "date_finalized": None
@@ -107,6 +112,7 @@ def create_quotation():
     print(f"Quantity: {quantity}")
     print(f"Subtotal: PHP {subtotal:,.2f}")
     print(f"Discount: {discount}%")
+    print(f"Rush Surcharge: PHP {rush_fee:,.2f}")
     print(f"Total Price: PHP {total_price:,.2f}")
     print(f"Status: Draft")
     print("================================")

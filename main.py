@@ -1,6 +1,5 @@
 from modules.createQuotation import create_quotation
 from modules.pendingQuotations import pending_quotations_menu
-from modules.customerResponse import customer_response
 from modules.order import order_management_menu
 from modules.quotationArchive import quotation_archive_menu
 from modules.responseClient import sync_customer_responses
@@ -17,7 +16,6 @@ def main():
         print("2. Quotation Workspace")
         print("3. Order Management")
         print("4. Quotation Archive")
-        print("5. Customer Response (TEMP)")
         print("0. Exit")
         print("================================")
         choice = input("Enter choice: ")
@@ -34,9 +32,6 @@ def main():
 
         elif choice == "4":
             quotation_archive_menu()
-
-        elif choice == "5":
-            customer_response()
 
         elif choice == "0":
             print("Exiting Printing Shop System...")

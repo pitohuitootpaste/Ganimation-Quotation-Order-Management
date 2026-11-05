@@ -98,6 +98,8 @@ def view_order_details():
     print(f"Price Per Product: PHP {order['price_per_product']:,.2f}")
     print(f"Discount: {order['discount']}%")
     print(f"Subtotal: PHP {order['subtotal']:,.2f}")
+    if "rush_fee" in order:
+        print(f"Rush Surcharge: PHP {order['rush_fee']:,.2f}")
     print(f"Total: PHP {order['total_price']:,.2f}")
     print("-----------------------------------")
     print(f"Rush Order: {order['is_rush_order']}")

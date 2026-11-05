@@ -2,6 +2,7 @@ from datetime import datetime
 
 from modules.storage import load_data, save_data
 from modules.emailSender import send_finalized_quotation_email
+from modules.pricing import calculate_totals
 
 def view_quotations():
     quotations = load_data("quotations.json")
@@ -87,6 +88,22 @@ def edit_quotation():
         quotation["product_name"] = product_name
 
     while True:
+        current_rush = "Y" if quotation.get("is_rush_order", False) else "N"
+        rush_input = input(
+            f"Rush Order? (Y/N) [{current_rush}; Enter = keep]: "
+        ).strip().lower()
+
+        if not rush_input:
+            break
+        if rush_input == "y":
+            quotation["is_rush_order"] = True
+            break
+        if rush_input == "n":
+            quotation["is_rush_order"] = False
+            break
+        print("Please enter Y, N, or press Enter to keep the current value.")
+
+    while True:
         quantity = input(f"Quantity ({quotation['quantity']}): ")
         
         if not quantity:
@@ -153,10 +170,15 @@ def edit_quotation():
     elif instructions:
         quotation["special_instructions"] = instructions
 
-    subtotal = quotation["quantity"] * quotation["price_per_product"]
-    discount_amount = subtotal * (quotation["discount"] / 100)
-    quotation["subtotal"] = round(subtotal, 2)
-    quotation["total_price"] = round(subtotal - discount_amount, 2)
+    subtotal, rush_fee, total_price = calculate_totals(
+        quotation["quantity"],
+        quotation["price_per_product"],
+        quotation["discount"],
+        quotation.get("is_rush_order", False)
+    )
+    quotation["subtotal"] = subtotal
+    quotation["rush_fee"] = rush_fee
+    quotation["total_price"] = total_price
     save_data("quotations.json", quotations)
     print("\nQuotation updated successfully!")
 
