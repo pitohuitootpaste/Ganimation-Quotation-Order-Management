@@ -1,20 +1,43 @@
+import base64
+import hashlib
+import hmac
 import html
 import json
 import os
 import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
-from modules.responseStore import (
-    create_tables,
-    get_customer_responses,
-    record_decision,
-    save_response_link
-)
+from modules.responseStore import get_customer_responses, record_decision
 
 
 API_KEY = os.getenv("RESPONSE_API_KEY", "")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+
+
+def decode_response_token(token):
+    try:
+        encoded_payload, supplied_signature = token.split(".", 1)
+        expected_signature = hmac.new(
+            API_KEY.encode("utf-8"),
+            encoded_payload.encode("ascii"),
+            hashlib.sha256
+        ).hexdigest()
+        if not secrets.compare_digest(supplied_signature, expected_signature):
+            return None
+
+        padded_payload = encoded_payload + "=" * (-len(encoded_payload) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded_payload).decode("utf-8"))
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("client_id"), str)
+            or not isinstance(payload.get("quotation_id"), int)
+            or isinstance(payload.get("quotation_id"), bool)
+        ):
+            return None
+        return payload
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
 
 
 def response_page(title, message, form=None):
@@ -64,18 +87,6 @@ class ResponseHandler(BaseHTTPRequestHandler):
         supplied_key = self.headers.get("Authorization", "").removeprefix("Bearer ")
         return bool(API_KEY) and secrets.compare_digest(supplied_key, API_KEY)
 
-    def read_json(self):
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            return None
-        if length <= 0 or length > 65536:
-            return None
-        try:
-            return json.loads(self.rfile.read(length).decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return None
-
     def do_GET(self):
         parsed = urlparse(self.path)
 
@@ -100,8 +111,8 @@ class ResponseHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         token = query.get("token", [""])[0]
         decision = query.get("decision", [""])[0]
-        if not token or decision not in ("accepted", "declined"):
-            self.send_html(400, "Invalid link", "This response link is incomplete.")
+        if not decode_response_token(token) or decision not in ("accepted", "declined"):
+            self.send_html(400, "Invalid link", "This response link is invalid.")
             return
 
         action = "accept" if decision == "accepted" else "decline"
@@ -113,49 +124,7 @@ class ResponseHandler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-
-        if parsed.path == "/api/quotations":
-            if not self.authorized():
-                self.send_json(401, {"error": "Not authorized."})
-                return
-
-            quotation = self.read_json()
-            required = ("client_id", "quotation_id")
-            if not isinstance(quotation, dict) or any(
-                not quotation.get(field) for field in required
-            ):
-                self.send_json(400, {"error": "Quotation details are incomplete."})
-                return
-            if (
-                not isinstance(quotation["quotation_id"], int)
-                or not isinstance(quotation["client_id"], str)
-                or len(quotation["client_id"]) > 100
-            ):
-                self.send_json(400, {"error": "Quotation or computer ID is invalid."})
-                return
-            if not PUBLIC_BASE_URL:
-                self.send_json(503, {"error": "The public service URL is not configured."})
-                return
-
-            token = secrets.token_urlsafe(32)
-            try:
-                save_response_link(quotation, token)
-            except ValueError as error:
-                self.send_json(409, {"error": str(error)})
-                return
-            except Exception:
-                self.send_json(503, {"error": "Could not save the response link."})
-                return
-
-            encoded_token = urlencode({"token": token})
-            self.send_json(200, {
-                "accept_url": f"{PUBLIC_BASE_URL}/respond?{encoded_token}&decision=accepted",
-                "decline_url": f"{PUBLIC_BASE_URL}/respond?{encoded_token}&decision=declined"
-            })
-            return
-
-        if parsed.path != "/respond":
+        if urlparse(self.path).path != "/respond":
             self.send_html(404, "Page not found", "This link is not available.")
             return
 
@@ -166,17 +135,23 @@ class ResponseHandler(BaseHTTPRequestHandler):
         if length <= 0 or length > 4096:
             self.send_html(400, "Invalid response", "The response could not be submitted.")
             return
+
         form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
         token = form.get("token", [""])[0]
         decision = form.get("decision", [""])[0]
-        if not token or decision not in ("accepted", "declined"):
+        token_data = decode_response_token(token)
+        if not token_data or decision not in ("accepted", "declined"):
             self.send_html(400, "Invalid response", "The response could not be submitted.")
             return
 
         try:
-            record_decision(token, decision)
-        except (ValueError, LookupError) as error:
-            self.send_html(409, "Response not submitted", str(error))
+            record_decision(
+                token_data["client_id"],
+                token_data["quotation_id"],
+                decision
+            )
+        except ValueError as error:
+            self.send_html(409, "Response already received", str(error))
             return
         except Exception:
             self.send_html(503, "Try again later", "The response service is temporarily unavailable.")
@@ -192,7 +167,6 @@ def main():
     if not PUBLIC_BASE_URL:
         raise RuntimeError("Set PUBLIC_BASE_URL to your Render service URL.")
 
-    create_tables()
     port = int(os.getenv("PORT", "10000"))
     server = ThreadingHTTPServer(("0.0.0.0", port), ResponseHandler)
     print(f"Customer response service listening on port {port}.")

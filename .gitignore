@@ -3,3 +3,4 @@ token.json
 
 __pycache__/
 data/.response_client_id
+data/customer_responses.json

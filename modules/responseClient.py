@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 import json
 import uuid
 from datetime import datetime
@@ -55,16 +58,30 @@ def _api_request(path, method="GET", body=None):
         raise RuntimeError("Could not connect to the hosted response service.") from error
 
 
-def register_response_links(quotation):
-    result = _api_request(
-        "/api/quotations",
-        method="POST",
-        body={
+def create_response_links(quotation):
+    if not RESPONSE_SERVICE_URL or not RESPONSE_API_KEY:
+        raise RuntimeError(
+            "Customer response links are not configured on this computer yet."
+        )
+
+    payload = json.dumps(
+        {
             "client_id": get_client_id(),
             "quotation_id": quotation["quotation_id"]
-        }
+        },
+        separators=(",", ":")
+    ).encode("utf-8")
+    encoded_payload = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+    signature = hmac.new(
+        RESPONSE_API_KEY.encode("utf-8"),
+        encoded_payload.encode("ascii"),
+        hashlib.sha256
+    ).hexdigest()
+    token = f"{encoded_payload}.{signature}"
+    return (
+        f"{RESPONSE_SERVICE_URL}/respond?token={token}&decision=accepted",
+        f"{RESPONSE_SERVICE_URL}/respond?token={token}&decision=declined"
     )
-    return result["accept_url"], result["decline_url"]
 
 
 def sync_customer_responses(show_message=False):

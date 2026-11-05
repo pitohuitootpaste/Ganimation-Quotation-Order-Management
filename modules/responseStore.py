@@ -1,108 +1,51 @@
-import hashlib
-import os
+import json
+import threading
+from pathlib import Path
 
 
-def get_connection():
-    try:
-        import psycopg
-    except ModuleNotFoundError as error:
-        raise RuntimeError("Install the project requirements first.") from error
-
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not configured.")
-
-    return psycopg.connect(database_url)
+RESPONSE_FILE = Path(__file__).resolve().parent.parent / "data" / "customer_responses.json"
+FILE_LOCK = threading.Lock()
 
 
-def create_tables():
-    with get_connection() as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS customer_response_links (
-                client_id TEXT NOT NULL,
-                quotation_id BIGINT NOT NULL,
-                token_hash TEXT NOT NULL UNIQUE,
-                decision TEXT CHECK (decision IN ('accepted', 'declined')),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                responded_at TIMESTAMPTZ,
-                PRIMARY KEY (client_id, quotation_id)
-            )
-            """
-        )
+def _read_responses():
+    if not RESPONSE_FILE.exists():
+        return []
+
+    with RESPONSE_FILE.open("r", encoding="utf-8") as file:
+        return json.load(file)
 
 
-def save_response_link(quotation, token):
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+def _write_responses(responses):
+    RESPONSE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary_file = RESPONSE_FILE.with_suffix(".tmp")
+    with temporary_file.open("w", encoding="utf-8") as file:
+        json.dump(responses, file, indent=4)
+    temporary_file.replace(RESPONSE_FILE)
 
-    with get_connection() as connection:
-        existing = connection.execute(
-            """SELECT decision FROM customer_response_links
-            WHERE client_id = %s AND quotation_id = %s""",
-            (quotation["client_id"], quotation["quotation_id"])
-        ).fetchone()
 
-        if existing and existing[0]:
-            raise ValueError("This quotation already has a customer response.")
-
-        connection.execute(
-            """
-            INSERT INTO customer_response_links (
-                client_id, quotation_id, token_hash, decision, created_at, responded_at
-            )
-            VALUES (%s, %s, %s, NULL, NOW(), NULL)
-            ON CONFLICT (client_id, quotation_id) DO UPDATE SET
-                token_hash = EXCLUDED.token_hash,
-                created_at = NOW()
-            """,
+def record_decision(client_id, quotation_id, decision):
+    with FILE_LOCK:
+        responses = _read_responses()
+        existing = next(
             (
-                quotation["client_id"],
-                quotation["quotation_id"],
-                token_hash
-            )
+                item for item in responses
+                if item["client_id"] == client_id
+                and item["quotation_id"] == quotation_id
+            ),
+            None
         )
 
-
-def record_decision(token, decision):
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-    with get_connection() as connection:
-        row = connection.execute(
-            """
-            UPDATE customer_response_links
-            SET decision = %s, responded_at = NOW()
-            WHERE token_hash = %s AND decision IS NULL
-            RETURNING quotation_id
-            """,
-            (decision, token_hash)
-        ).fetchone()
-
-        if row:
-            return True
-
-        exists = connection.execute(
-            "SELECT decision FROM customer_response_links WHERE token_hash = %s",
-            (token_hash,)
-        ).fetchone()
-
-        if exists:
+        if existing:
             raise ValueError("A response has already been submitted for this quotation.")
 
-        raise LookupError("This response link is invalid or has expired.")
+        responses.append({
+            "client_id": client_id,
+            "quotation_id": quotation_id,
+            "decision": decision
+        })
+        _write_responses(responses)
 
 
 def get_customer_responses():
-    with get_connection() as connection:
-        rows = connection.execute(
-            """
-            SELECT client_id, quotation_id, decision
-            FROM customer_response_links
-            WHERE decision IS NOT NULL
-            ORDER BY responded_at
-            """
-        ).fetchall()
-
-    return [
-        {"client_id": row[0], "quotation_id": row[1], "decision": row[2]}
-        for row in rows
-    ]
+    with FILE_LOCK:
+        return _read_responses()

@@ -3,7 +3,7 @@ from email.message import EmailMessage
 from pathlib import Path
 
 from modules.settings import GMAIL_SENDER_EMAIL
-from modules.responseClient import register_response_links
+from modules.responseClient import create_response_links
 from modules.storage import load_data
 
 
@@ -114,7 +114,7 @@ def send_finalized_quotation_email():
         return
 
     try:
-        accept_url, decline_url = register_response_links(quotation)
+        accept_url, decline_url = create_response_links(quotation)
     except RuntimeError as error:
         print(f"Email was not sent: {error}")
         return
