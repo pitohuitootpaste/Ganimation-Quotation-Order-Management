@@ -3,8 +3,10 @@ from modules.pendingQuotations import pending_quotations_menu
 from modules.customerResponse import customer_response
 from modules.order import order_management_menu
 from modules.quotationArchive import quotation_archive_menu
+from modules.responseClient import sync_customer_responses
 
 def main():
+    sync_customer_responses(show_message=True)
 
     while True:
 
@@ -19,6 +21,7 @@ def main():
         print("0. Exit")
         print("================================")
         choice = input("Enter choice: ")
+        sync_customer_responses()
 
         if choice == "1":
             create_quotation()

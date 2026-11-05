@@ -3,6 +3,7 @@ from email.message import EmailMessage
 from pathlib import Path
 
 from modules.settings import GMAIL_SENDER_EMAIL
+from modules.responseClient import register_response_links
 from modules.storage import load_data
 
 
@@ -112,6 +113,12 @@ def send_finalized_quotation_email():
     if service is None:
         return
 
+    try:
+        accept_url, decline_url = register_response_links(quotation)
+    except RuntimeError as error:
+        print(f"Email was not sent: {error}")
+        return
+
     special_instructions = quotation.get("special_instructions") or "None"
     email_text = f"""Hello {quotation['customer_name']},
 
@@ -127,7 +134,13 @@ Total: PHP {quotation['total_price']:,.2f}
 Rush order: {"Yes" if quotation['is_rush_order'] else "No"}
 Special instructions: {special_instructions}
 
-Please reply to this email if you have any questions or would like to discuss the quotation.
+To accept this quotation, open this link:
+{accept_url}
+
+To decline this quotation, open this link:
+{decline_url}
+
+After opening a link, confirm your choice on the page.
 
 Thank you,
 Printing Shop"""
