@@ -1,0 +1,23 @@
+[
+    {
+        "quotation_id": 1,
+        "customer_name": "gumba",
+        "phone_number": "123",
+        "email": "gawrgumba@gmail.com",
+        "product_name": "shak",
+        "quantity": 100,
+        "price_per_product": 100.0,
+        "discount": 20.0,
+        "is_rush_order": false,
+        "special_instructions": "A.",
+        "subtotal": 10000.0,
+        "total_price": 8000.0,
+        "status": "Accepted",
+        "date_created": "2026-11-05 05:06:11",
+        "date_finalized": "2026-11-05 05:06:41",
+        "order_id": 1,
+        "date_accepted": "2026-11-05 05:17:05",
+        "payment_status": "Paid",
+        "order_status": "Completed"
+    }
+]

@@ -1,0 +1,19 @@
+[
+    {
+        "quotation_id": 2,
+        "customer_name": "biboo",
+        "phone_number": "81800",
+        "email": "smn@gmail.com",
+        "product_name": "smn",
+        "quantity": 99,
+        "price_per_product": 100.0,
+        "discount": 50.0,
+        "is_rush_order": true,
+        "special_instructions": "meh",
+        "subtotal": 9900.0,
+        "total_price": 4950.0,
+        "status": "Declined",
+        "date_created": "2026-11-05 05:16:27",
+        "date_finalized": "2026-11-05 05:16:42"
+    }
+]
